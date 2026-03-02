@@ -452,6 +452,9 @@ const AdminTopics = ({ topics, onRefresh }: { topics: Topic[], onRefresh: () => 
   const [filterMajor, setFilterMajor] = useState('');
   const [filterLevel, setFilterLevel] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // State quản lý checkbox xóa hàng loạt
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   // Get unique values for filters
   const courses = Array.from(new Set(topics.map(t => t.course))).sort();
@@ -578,6 +581,47 @@ const AdminTopics = ({ topics, onRefresh }: { topics: Topic[], onRefresh: () => 
     onRefresh();
   };
 
+  // Hàm chọn từng đề tài
+  const handleSelect = (id: number) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
+
+  // Hàm chọn tất cả các đề tài đang hiển thị
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedIds(filteredTopics.map(t => t.id)); 
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  // Hàm xóa hàng loạt
+  const handleDeleteBulk = async () => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} đề tài đã chọn? Hành động này không thể hoàn tác.`)) return;
+
+    try {
+      const res = await fetch("/api/topics/delete-bulk", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Admin123"
+        },
+        body: JSON.stringify({ ids: selectedIds })
+      });
+
+      if (res.ok) {
+        alert("Đã xóa thành công!");
+        setSelectedIds([]);
+        onRefresh();
+      } else {
+        alert("Có lỗi xảy ra khi xóa.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Lỗi kết nối máy chủ.");
+    }
+  };
+
   const startEdit = (topic: Topic) => {
     setEditingTopic(topic);
     setFormData({
@@ -610,6 +654,18 @@ const AdminTopics = ({ topics, onRefresh }: { topics: Topic[], onRefresh: () => 
             Import CSV
             <input type="file" accept=".csv" className="hidden" onChange={handleImport} disabled={isImporting} />
           </label>
+          
+          {/* Nút Xóa Hàng Loạt */}
+          {selectedIds.length > 0 && (
+            <button 
+              onClick={handleDeleteBulk}
+              className="bg-ueb-red hover:bg-red-800 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all shadow-md shadow-red-900/20"
+            >
+              <Trash2 className="w-4 h-4" />
+              Xóa {selectedIds.length}
+            </button>
+          )}
+
           <button 
             onClick={() => { setIsAdding(true); setEditingTopic(null); }}
             className="bg-ueb-blue hover:bg-blue-800 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all"
@@ -752,6 +808,15 @@ const AdminTopics = ({ topics, onRefresh }: { topics: Topic[], onRefresh: () => 
         <table className="w-full text-left border-collapse">
           <thead className="bg-zinc-50 border-b border-zinc-200">
             <tr>
+              {/* Cột Checkbox trên tiêu đề */}
+              <th className="px-6 py-4 w-12 text-center">
+                <input 
+                  type="checkbox" 
+                  onChange={handleSelectAll} 
+                  checked={selectedIds.length > 0 && selectedIds.length === filteredTopics.length}
+                  className="w-4 h-4 text-ueb-blue rounded border-zinc-300 focus:ring-ueb-blue cursor-pointer"
+                />
+              </th>
               <th className="px-6 py-4 text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Thông tin đề tài</th>
               <th className="px-6 py-4 text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Chuyên ngành & Khóa</th>
               <th className="px-6 py-4 text-[11px] font-bold text-zinc-400 uppercase tracking-widest text-right">Thao tác</th>
@@ -760,6 +825,15 @@ const AdminTopics = ({ topics, onRefresh }: { topics: Topic[], onRefresh: () => 
           <tbody className="divide-y divide-zinc-100">
             {filteredTopics.map(topic => (
               <tr key={topic.id} className="hover:bg-blue-50/30 transition-colors group">
+                {/* Cột Checkbox từng dòng */}
+                <td className="px-6 py-5 text-center">
+                  <input 
+                    type="checkbox" 
+                    onChange={() => handleSelect(topic.id)}
+                    checked={selectedIds.includes(topic.id)}
+                    className="w-4 h-4 text-ueb-blue rounded border-zinc-300 focus:ring-ueb-blue cursor-pointer"
+                  />
+                </td>
                 <td className="px-6 py-5">
                   <div className="font-bold text-zinc-900 mb-1.5 leading-snug group-hover:text-ueb-blue transition-colors">{topic.title}</div>
                   <div className="flex items-center gap-4 text-xs text-zinc-500">

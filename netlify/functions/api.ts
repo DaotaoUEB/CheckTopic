@@ -137,5 +137,24 @@ app.post("/api/settings", isAdmin, async (req, res) => {
   }
 });
 
+// 8. Xóa hàng loạt đề tài (Bulk Delete)
+app.post("/api/topics/delete-bulk", isAdmin, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    // Kiểm tra xem dữ liệu gửi lên có phải là mảng ID hợp lệ không
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "Không có dữ liệu hợp lệ để xóa" });
+    }
+
+    // Sử dụng toán tử ANY() của PostgreSQL để xóa toàn bộ danh sách ID trong 1 lệnh
+    await sql`DELETE FROM topics WHERE id = ANY(${ids}::int[])`;
+    
+    res.json({ success: true, count: ids.length });
+  } catch (error) {
+    console.error("Bulk Delete Error:", error);
+    res.status(500).json({ error: "Lỗi khi xóa hàng loạt" });
+  }
+});
 // BỌC ỨNG DỤNG ĐỂ CHẠY TRÊN NETLIFY FUNCTIONS
 export const handler = serverless(app);
