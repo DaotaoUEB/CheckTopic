@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-ueb-blue: #004a99;
+  --color-ueb-red: #A31C22;
+}
+
+@layer base {
+  body {
+    @apply bg-zinc-50 text-zinc-900;
+  }
+}

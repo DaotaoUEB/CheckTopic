@@ -1,0 +1,5 @@
+{
+  "name": "Phần mềm Check tên đề tài UEB",
+  "description": "Hệ thống sử dụng AI để kiểm tra mức độ trùng lặp của tên đề tài nghiên cứu với cơ sở dữ liệu các khóa trước tại UEB.",
+  "requestFramePermissions": []
+}
