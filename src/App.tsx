@@ -145,16 +145,31 @@ const GuestModule = ({ topics, settings }: { topics: Topic[], settings: Settings
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
 
+  // --- THÊM STATE CHO TÍNH NĂNG TRA CỨU DANH MỤC ---
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterLevelGuest, setFilterLevelGuest] = useState('');
+  const [filterMajorGuest, setFilterMajorGuest] = useState('');
+
+  // Tự động rút trích các cấp đào tạo và ngành đào tạo độc nhất từ Database
+  const levels = Array.from(new Set(topics.map(t => t.level))).sort();
+  const majors = Array.from(new Set(topics.map(t => t.major))).sort();
+
+  // Xử lý bộ lọc liên hoàn
+  const filteredTopics = topics.filter(topic => {
+    const matchSearch = !searchTerm || topic.title.toLowerCase().includes(searchTerm.toLowerCase()) || topic.author.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchLevel = !filterLevelGuest || topic.level === filterLevelGuest;
+    const matchMajor = !filterMajorGuest || topic.major === filterMajorGuest;
+    return matchSearch && matchLevel && matchMajor;
+  });
+
   const handleAnalyze = async () => {
     if (!inputTitle.trim()) return;
     setIsAnalyzing(true);
     
     try {
-      // ĐÃ SỬA: Dùng import.meta.env để Vite có thể đọc được API Key
       const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-      
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash", // ĐÃ SỬA: Nâng cấp lên Model xử lý siêu tốc, không bị quá tải
+        model: "gemini-1.5-flash",
         contents: `
           Bạn là một chuyên gia đánh giá đề tài nghiên cứu khoa học tại Trường Đại học Kinh tế - ĐHQGHN (UEB). 
           Nhiệm vụ: Đánh giá mức độ trùng lặp của đề tài dự kiến với danh sách các đề tài đã thực hiện.
@@ -167,28 +182,32 @@ const GuestModule = ({ topics, settings }: { topics: Topic[], settings: Settings
           Danh sách đề tài đã thực hiện (gồm ${topics.length} đề tài):
           ${topics.map(t => `- ID: ${t.id}, Title: "${t.title}", Major: "${t.major}", Course: "${t.course}", Level: "${t.level}"`).join('\n')}
           
-          LỆNH TỐI QUAN TRỌNG DÀNH CHO BẠN (BẮT BUỘC TUÂN THỦ):
-          1. Dù danh sách có dài đến đâu, bạn BẮT BUỘC phải quét toàn bộ để tìm ra các đề tài tương đồng nhất.
-          2. NẾU điểm trùng lặp (score) bạn đánh giá là > 30%, BẮT BUỘC mảng "similarTopics" phải chứa chính xác 3 đề tài giống nhất. 
-          3. TUYỆT ĐỐI KHÔNG ĐƯỢC lười biếng bỏ qua mảng "similarTopics" hoặc trả về mảng rỗng nếu score > 30%. Đây là lỗi nghiêm trọng.
+          LỆNH BẮT BUỘC DÀNH CHO BẠN (TUÂN THỦ 100%):
+          1. Tính toán điểm trùng lặp tổng thể (score từ 0-100).
+          2. PHẦN OVERVIEW: BẮT BUỘC phải viết thật chi tiết và chuyên nghiệp (ít nhất 3-4 câu, khoảng 100 chữ). 
+             - Nếu đề tài bị trùng lặp: Phân tích rõ trùng ở biến số nào, đối tượng nào.
+             - Nếu đề tài an toàn (tính mới cao): Bắt buộc phải viết nhận xét khen ngợi tính mới, đồng thời gợi ý thêm hướng nghiên cứu chuyên sâu, hoặc các yếu tố không gian/thời gian nên bổ sung. TUYỆT ĐỐI KHÔNG được trả lời cụt ngủn 1 câu.
+          3. PHẦN SIMILAR TOPICS:
+             - Nếu score > 30%: BẮT BUỘC trích xuất chính xác 3 đề tài giống nhất từ danh sách trên để đưa vào mảng "similarTopics".
+             - Nếu score <= 30%: Trả về mảng "similarTopics" là rỗng [].
           
           Hãy trả về kết quả dưới dạng JSON với cấu trúc:
           {
-            "score": number (0-100, 100 là trùng lặp hoàn toàn),
-            "status": "Safe" | "Warning" | "Danger" (Safe: <30%, Warning: 30-70%, Danger: >70%),
+            "score": number (0-100),
+            "status": "Safe" | "Warning" | "Danger",
             "reason": "Kết luận ngắn gọn (1 câu)",
-            "overview": "Đánh giá tổng quan chi tiết về kết quả tìm kiếm, bao gồm nhận xét về tính mới của đề tài và lời khuyên cho người nghiên cứu (bằng tiếng Việt, chuyên nghiệp, khoảng 3-4 câu)",
+            "overview": "Đánh giá tổng quan, phân tích tính mới và lời khuyên (3-4 câu chi tiết)",
             "similarTopics": [
               { 
                 "id": number, 
                 "title": "tên đề tài", 
-                "similarity": number (0-100),
-                "explanation": "Thuyết minh chi tiết tại sao đề tài này tương đồng với đề tài dự kiến (bằng tiếng Việt)",
-                "major": "chuyên ngành của đề tài này",
-                "course": "khóa đào tạo của đề tài này",
-                "level": "cấp đào tạo của đề tài này"
+                "similarity": number,
+                "explanation": "Thuyết minh chi tiết tại sao tương đồng",
+                "major": "chuyên ngành",
+                "course": "khóa đào tạo",
+                "level": "cấp đào tạo"
               }
-            ] (Chỉ lấy top 3 đề tài có độ tương đồng cao nhất > 30%)
+            ]
           }
         `,
         config: {
@@ -224,7 +243,6 @@ const GuestModule = ({ topics, settings }: { topics: Topic[], settings: Settings
       rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
       const data = JSON.parse(rawText);
       
-      // Khóa chống sập: Đảm bảo similarTopics luôn là mảng
       if (!data.similarTopics) {
         data.similarTopics = [];
       }
@@ -232,7 +250,7 @@ const GuestModule = ({ topics, settings }: { topics: Topic[], settings: Settings
       setResult(data);
     } catch (error: any) {
       console.error("AI Analysis Error:", error);
-      alert("Lỗi kết nối AI: " + (error.message || "Không rõ nguyên nhân. Vui lòng F5 tải lại trang."));
+      alert("Lỗi kết nối AI: " + (error.message || "Không rõ nguyên nhân. Vui lòng tải lại trang."));
     } finally {
       setIsAnalyzing(false);
     }
@@ -309,6 +327,7 @@ const GuestModule = ({ topics, settings }: { topics: Topic[], settings: Settings
         </div>
       </div>
 
+      {/* Kết quả AI Analysis */}
       <div className="max-w-4xl mx-auto py-12 px-4">
         <AnimatePresence>
           {!result && (
@@ -329,7 +348,7 @@ const GuestModule = ({ topics, settings }: { topics: Topic[], settings: Settings
                   <CheckCircle2 className="w-5 h-5 text-ueb-red" />
                 </div>
                 <h4 className="font-bold text-zinc-900 mb-2">Phân tích AI</h4>
-                <p className="text-sm text-zinc-500">Sử dụng mô hình Gemini 3.1 Pro để đánh giá độ tương đồng ngữ nghĩa.</p>
+                <p className="text-sm text-zinc-500">Sử dụng mô hình Gemini 1.5 để đánh giá độ tương đồng ngữ nghĩa.</p>
               </div>
               <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm">
                 <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center mb-4">
@@ -446,6 +465,100 @@ const GuestModule = ({ topics, settings }: { topics: Topic[], settings: Settings
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+
+      {/* TÍNH NĂNG MỚI: KHO TRA CỨU DANH MỤC ĐỀ TÀI DÀNH CHO GUEST */}
+      <div className="max-w-6xl mx-auto pb-20 px-4">
+        <div className="mb-8 border-t border-zinc-200 pt-16">
+          <div className="flex items-center gap-3 mb-2">
+            <DbIcon className="w-7 h-7 text-ueb-blue" />
+            <h2 className="text-3xl font-bold text-zinc-900">Danh mục Đề tài đã triển khai</h2>
+          </div>
+          <p className="text-zinc-500 text-lg">Tra cứu và tham khảo {filteredTopics.length} đề tài trong hệ thống học thuật</p>
+        </div>
+
+        {/* Bảng điều khiển bộ lọc */}
+        <div className="bg-white border border-zinc-200 rounded-2xl p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 shadow-sm">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
+            <input 
+              type="text"
+              placeholder="Tìm kiếm theo tên đề tài, tác giả..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-ueb-blue/20 focus:border-ueb-blue outline-none transition-all font-medium text-zinc-900"
+            />
+          </div>
+          <select 
+            value={filterLevelGuest}
+            onChange={e => setFilterLevelGuest(e.target.value)}
+            className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-ueb-blue/20 focus:border-ueb-blue outline-none transition-all font-bold text-zinc-700"
+          >
+            <option value="">Tất cả Cấp đào tạo</option>
+            {levels.map(l => <option key={l} value={l}>{l}</option>)}
+          </select>
+          <select 
+            value={filterMajorGuest}
+            onChange={e => setFilterMajorGuest(e.target.value)}
+            className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-ueb-blue/20 focus:border-ueb-blue outline-none transition-all font-bold text-zinc-700"
+          >
+            <option value="">Tất cả Ngành đào tạo</option>
+            {majors.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+
+        {/* Bảng dữ liệu danh mục */}
+        <div className="bg-white rounded-3xl border border-zinc-200 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-zinc-50/80 border-b border-zinc-200">
+                <tr>
+                  <th className="px-8 py-5 text-[11px] font-bold text-zinc-400 uppercase tracking-widest w-1/2">Thông tin đề tài</th>
+                  <th className="px-8 py-5 text-[11px] font-bold text-zinc-400 uppercase tracking-widest w-1/4">Tác giả</th>
+                  <th className="px-8 py-5 text-[11px] font-bold text-zinc-400 uppercase tracking-widest w-1/4">Chuyên ngành & Khóa</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {filteredTopics.slice(0, 100).map(topic => ( // Tự động giới hạn hiển thị 100 kết quả để giao diện chạy mượt
+                  <tr key={topic.id} className="hover:bg-blue-50/40 transition-colors">
+                    <td className="px-8 py-6">
+                      <div className="font-bold text-zinc-900 mb-2 leading-snug text-base">{topic.title}</div>
+                      <span className="inline-flex items-center gap-1.5 bg-blue-50 px-2.5 py-1 rounded-md text-ueb-blue text-[10px] font-bold uppercase tracking-wider">
+                        {topic.level}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-2 text-sm text-zinc-700 font-semibold">
+                        <User className="w-4 h-4 text-zinc-400" />
+                        {topic.author}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="text-sm font-semibold text-zinc-700 mb-1">{topic.major}</div>
+                      <div className="text-xs text-zinc-500 flex items-center gap-1.5 font-medium">
+                        <Calendar className="w-3.5 h-3.5" /> Khóa {topic.course}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                
+                {filteredTopics.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-8 py-16 text-center text-zinc-500 font-medium">
+                      Không tìm thấy đề tài nào phù hợp với bộ lọc.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          
+          {filteredTopics.length > 100 && (
+            <div className="bg-zinc-50 px-8 py-5 text-center text-sm text-zinc-500 font-medium border-t border-zinc-200">
+              Đang hiển thị 100 / {filteredTopics.length} kết quả. Vui lòng sử dụng thanh tìm kiếm để tra cứu chi tiết hơn.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
