@@ -154,7 +154,7 @@ const GuestModule = ({ topics, settings }: { topics: Topic[], settings: Settings
       const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
       
       const response = await ai.models.generateContent({
-        model: "gemini-3.0-flash-preview", // ĐÃ SỬA: Nâng cấp lên Model xử lý siêu tốc, không bị quá tải
+        model: "gemini-3-flash-preview", // ĐÃ SỬA: Nâng cấp lên Model xử lý siêu tốc, không bị quá tải
         contents: `
           Bạn là một chuyên gia đánh giá đề tài nghiên cứu khoa học tại Trường Đại học Kinh tế - ĐHQGHN (UEB). 
           Nhiệm vụ: Đánh giá mức độ trùng lặp của đề tài dự kiến với danh sách các đề tài đã thực hiện.
